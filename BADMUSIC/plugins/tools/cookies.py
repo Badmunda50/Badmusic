@@ -70,7 +70,7 @@ async def check_cookies(video_url):
         with YoutubeDL(opts) as ytdl:
             ytdl.extract_info(video_url, download=False)
         return True
-    catch Exception as e:
+    except Exception as e:  # Corrected 'catch' to 'except'
         return False
 
 
