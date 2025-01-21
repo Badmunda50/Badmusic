@@ -26,7 +26,7 @@ def get_progress_bar(percentage):
     elif 90 < umm <= 100:
         return "▰▰▰▰▰▰▰▰▰▰"
     else:
-        return "▱▱▱▱▱▱▱▱▱"
+        return "▰▰▰▰▰▰▰▰▰▰"
 
 def get_progress_bar2(percentage):
     umm = math.floor(percentage)
