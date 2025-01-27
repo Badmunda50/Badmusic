@@ -20,6 +20,12 @@ from pytgcalls import PyTgCalls
 from pytgcalls.exceptions import AlreadyJoinedError, NoActiveGroupCall
 
 from pytgcalls.types.stream import StreamAudioEnded
+from pytgcalls.types import (
+    JoinedGroupCallParticipant,
+    LeftGroupCallParticipant,
+    MediaStream,
+    Update,
+)
 
 import config
 from strings import get_string
