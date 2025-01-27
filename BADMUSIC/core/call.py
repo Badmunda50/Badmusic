@@ -20,7 +20,6 @@ from pytgcalls import PyTgCalls
 from pytgcalls.exceptions import AlreadyJoinedError, NoActiveGroupCall
 from pytgcalls.types import (
     JoinedGroupCallParticipant,
-    LeftGroupCallParticipant,
     MediaStream,
     Update,
 )
