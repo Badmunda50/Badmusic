@@ -1,13 +1,15 @@
-from pyrogram.enums import ChatMemberStatus
+from pyrogram import Client, filters, enums
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.errors import (
     ChatAdminRequired,
     InviteRequestSent,
     UserAlreadyParticipant,
     UserNotParticipant,
 )
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.errors import ChannelPrivate
 
-from config import PLAYLIST_IMG_URL, SUPPORT_CHAT, adminlist
+from config import PLAYLIST_IMG_URL, PRIVATE_BOT_MODE
+from config import adminlist
 from strings import get_string
 from BADMUSIC import Platform, app
 from BADMUSIC.core.call import BAD
@@ -27,6 +29,7 @@ from BADMUSIC.utils.inline import botplaylist_markup
 
 links = {}
 
+
 def PlayWrapper(command):
     async def wrapper(client, message):
         language = await get_lang(message.chat.id)
@@ -36,25 +39,29 @@ def PlayWrapper(command):
                 [
                     [
                         InlineKeyboardButton(
-                            text="ʜᴏᴡ ᴛᴏ ғɪx ?",
+                            text="How to Fix ?",
                             callback_data="AnonymousAdmin",
                         ),
                     ]
                 ]
             )
-            return await message.reply_text(_["general_3"], reply_markup=upl)
+            return await message.reply_text(_["general_4"], reply_markup=upl)
 
         if await is_maintenance() is False:
             if message.from_user.id not in SUDOERS:
-                return await message.reply_text(
-                    text=f"{app.mention} ɪs ᴜɴᴅᴇʀ ᴍᴀɪɴᴛᴇɴᴀɴᴄᴇ, ᴠɪsɪᴛ <a href={SUPPORT_GROUP}>sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ</a> ғᴏʀ ᴋɴᴏᴡɪɴɢ ᴛʜᴇ ʀᴇᴀsᴏɴ.",
-                    disable_web_page_preview=True,
-                )
+                return
 
-        try:
-            await message.delete()
-        except:
-            pass
+        if PRIVATE_BOT_MODE == str(True):
+            if not await is_served_private_chat(message.chat.id):
+                await message.reply_text(
+                    "**PRIVATE MUSIC BOT**\n\nOnly For Authorized chats from the owner ask my owner to allow your chat first."
+                )
+                return await app.leave_chat(message.chat.id)
+        if await is_commanddelete_on(message.chat.id):
+            try:
+                await message.delete()
+            except Exception:
+                pass
 
         audio_telegram = (
             (message.reply_to_message.audio or message.reply_to_message.voice)
@@ -66,7 +73,7 @@ def PlayWrapper(command):
             if message.reply_to_message
             else None
         )
-        url = await Platform.url(message)
+        url = await Platform.youtube.url(message)
         if audio_telegram is None and video_telegram is None and url is None:
             if len(message.command) < 2:
                 if "stream" in message.command:
@@ -74,28 +81,37 @@ def PlayWrapper(command):
                 buttons = botplaylist_markup(_)
                 return await message.reply_photo(
                     photo=PLAYLIST_IMG_URL,
-                    caption=_["play_18"],
+                    caption=_["playlist_1"],
                     reply_markup=InlineKeyboardMarkup(buttons),
                 )
         if message.command[0][0] == "c":
             chat_id = await get_cmode(message.chat.id)
             if chat_id is None:
-                return await message.reply_text(_["setting_7"])
+                return await message.reply_text(_["setting_12"])
             try:
                 chat = await app.get_chat(chat_id)
-            except:
+            except Exception:
                 return await message.reply_text(_["cplay_4"])
             channel = chat.title
         else:
             chat_id = message.chat.id
             channel = None
+        try:
+            is_call_active = (await app.get_chat(chat_id)).is_call_active
+            if not is_call_active:
+                return await message.reply_text(
+                    "**No active video chat found **\n\nPlease make sure you started the voicechat."
+                )
+        except Exception:
+            pass
+
         playmode = await get_playmode(message.chat.id)
         playty = await get_playtype(message.chat.id)
         if playty != "Everyone":
             if message.from_user.id not in SUDOERS:
                 admins = adminlist.get(message.chat.id)
                 if not admins:
-                    return await message.reply_text(_["admin_13"])
+                    return await message.reply_text(_["admin_18"])
                 else:
                     if message.from_user.id not in admins:
                         return await message.reply_text(_["play_4"])
@@ -108,21 +124,20 @@ def PlayWrapper(command):
                 video = True if message.command[0][1] == "v" else None
         if message.command[0][-1] == "e":
             if not await is_active_chat(chat_id):
-                return await message.reply_text(_["play_16"])
+                return await message.reply_text(_["play_18"])
             fplay = True
         else:
             fplay = None
-
-        if not await is_active_chat(chat_id):
-            userbot = await get_assistant(chat_id)
+        if await is_active_chat(chat_id):
+            userbot = await get_assistant(message.chat.id)
             try:
                 try:
                     get = await app.get_chat_member(chat_id, userbot.id)
                 except ChatAdminRequired:
                     return await message.reply_text(_["call_1"])
                 if (
-                    get.status == ChatMemberStatus.BANNED
-                    or get.status == ChatMemberStatus.RESTRICTED
+                    get.status == enums.ChatMemberStatus.BANNED
+                    or get.status == enums.ChatMemberStatus.RESTRICTED
                 ):
                     return await message.reply_text(
                         _["call_2"].format(
@@ -193,3 +208,4 @@ def PlayWrapper(command):
         )
 
     return wrapper
+    
