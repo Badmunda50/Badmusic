@@ -1,10 +1,13 @@
-from pyrogram import Client, filters
+from pyrogram.enums import ChatMemberStatus
+from pyrogram.errors import (
+    ChatAdminRequired,
+    InviteRequestSent,
+    UserAlreadyParticipant,
+    UserNotParticipant,
+)
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from pyrogram.errors import ChannelPrivate
-
-from config import PLAYLIST_IMG_URL, PRIVATE_BOT_MODE, SUPPORT_GROUP
-from config import adminlist
+from config import PLAYLIST_IMG_URL, SUPPORT_CHAT, adminlist
 from strings import get_string
 from BADMUSIC import Platform, app
 from BADMUSIC.core.call import BAD
