@@ -22,7 +22,7 @@ pytube
 pykeyboard
 pyshorteners
 unidecode
-pyrofork==2.4.0rc1
+pyrofork==2.3.58
 py-tgcalls==2.0.6
 ntgcalls==1.2.3
 Abg==2.3.1
