@@ -17,12 +17,20 @@ from BADMUSIC.utils.decorators import asyncify
 
 
 def cookies():
-    folder_path = f"{os.getcwd()}/cookies"
-    txt_files = glob.glob(os.path.join(folder_path, "*.txt"))
-    if not txt_files:
-        raise FileNotFoundError("No .txt files found in the specified folder.")
-    cookie_txt_file = random.choice(txt_files)
-    return f"""cookies/{str(cookie_txt_file).split("/")[-1]}"""
+    if "DYNO" in os.environ:
+        # Running on Heroku
+        folder_path = f"{os.getcwd()}/cookies"
+        txt_files = glob.glob(os.path.join(folder_path, "*.txt"))
+        if not txt_files:
+            raise FileNotFoundError("No .txt files found in the specified folder.")
+        cookie_txt_file = random.choice(txt_files)
+        return f"""cookies/{str(cookie_txt_file).split("/")[-1]}"""
+    else:
+        # Running on VPS
+        cookie_file_path = "cookies.txt"
+        if not os.path.exists(cookie_file_path):
+            raise FileNotFoundError("No cookies.txt file found. Please create a cookies.txt file and add the cookies manually.")
+        return cookie_file_path
 
 
 async def shell_cmd(cmd):
