@@ -126,34 +126,35 @@ class Call(PyTgCalls):
             cache_duration=100,
         )
       
+
     # Add the track_vc method within the Call class
     async def track_vc(self, client: PyTgCalls, update: Update):
-    global vc_users
-    chat_id = update.chat_id
+        global vc_users
+        chat_id = update.chat_id
 
-    # Ensure the PyTgCalls client is started
-    if not self.vc._started:
-        await self.vc.start()
+        # Ensure the PyTgCalls client is started
+        if not self.vc._started:
+            await self.vc.start()
 
-    participants = await self.vc.get_participants(chat_id)
-    current_users = {p.user_id: p for p in participants}
+        participants = await self.vc.get_participants(chat_id)
+        current_users = {p.user_id: p for p in participants}
 
-    for user_id, user in current_users.items():
-        if user_id not in self.vc_users:
-            first_name = user.first_name if user.first_name else "Unknown"
-            username = f"@{user.username}" if user.username else "No Username"
-            message = f"🎙 **User Joined VC**\n👤 **Name:** {first_name}\n🔹 **Username:** {username}\n🆔 **ID:** `{user_id}`"
-            await app.send_message(chat_id, message)
+        for user_id, user in current_users.items():
+            if user_id not in self.vc_users:
+                first_name = user.first_name if user.first_name else "Unknown"
+                username = f"@{user.username}" if user.username else "No Username"
+                message = f"🎙 **User Joined VC**\n👤 **Name:** {first_name}\n🔹 **Username:** {username}\n🆔 **ID:** `{user_id}`"
+                await app.send_message(chat_id, message)
 
-    for user_id in list(self.vc_users.keys()):
-        if user_id not in current_users:
-            user = self.vc_users[user_id]
-            first_name = user.first_name if user.first_name else "Unknown"
-            username = f"@{user.username}" if user.username else "No Username"
-            message = f"🚫 **User Left VC**\n👤 **Name:** {first_name}\n🔹 **Username:** {username}\n🆔 **ID:** `{user_id}`"
-            await app.send_message(chat_id, message)
+        for user_id in list(self.vc_users.keys()):
+            if user_id not in current_users:
+                user = self.vc_users[user_id]
+                first_name = user.first_name if user.first_name else "Unknown"
+                username = f"@{user.username}" if user.username else "No Username"
+                message = f"🚫 **User Left VC**\n👤 **Name:** {first_name}\n🔹 **Username:** {username}\n🆔 **ID:** `{user_id}`"
+                await app.send_message(chat_id, message)
 
-    self.vc_users = current_users
+        self.vc_users = current_users
 
     async def pause_stream(self, chat_id: int):
         assistant = await group_assistant(self, chat_id)
