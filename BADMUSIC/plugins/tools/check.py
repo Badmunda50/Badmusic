@@ -1,9 +1,15 @@
 from BADMUSIC import userbot as app
 from pytgcalls import PyTgCalls
 from pytgcalls.types import Update
+from pytgcalls.exceptions import InvalidMTProtoClient
 
-vc = PyTgCalls(app)  
-vc_users = {}  
+try:
+    vc = PyTgCalls(app)
+except InvalidMTProtoClient:
+    print("Invalid MTProto Client. Please check the configuration of your userbot instance.")
+    raise
+
+vc_users = {}
 
 @vc.on_update()
 async def track_vc(client: PyTgCalls, update: Update):
