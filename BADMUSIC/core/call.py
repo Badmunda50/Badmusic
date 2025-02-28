@@ -21,6 +21,11 @@ from pytgcalls.types import (
     AudioQuality, 
     VideoQuality,
 )
+
+from pyrogram import Client
+from pytgcalls import PyTgCalls
+from pytgcalls.types import Update
+from pytgcalls.exceptions import InvalidMTProtoClient
 from pytgcalls.types.stream import StreamAudioEnded
 
 import config
@@ -59,10 +64,11 @@ async def _clear_(chat_id):
     await remove_active_chat(chat_id)
 
 
+
 class Call(PyTgCalls):
     def __init__(self):
         self.userbot1 = Client(
-            name="BadAss1",
+            name="PROAss1",
             api_id=config.API_ID,
             api_hash=config.API_HASH,
             session_string=str(config.STRING1),
@@ -71,13 +77,25 @@ class Call(PyTgCalls):
             self.userbot1,
             cache_duration=100,
         )
+        # Add the try-except block for initializing vc
+        try:
+            self.vc = PyTgCalls(self.userbot1)
+        except InvalidMTProtoClient:
+            print("Invalid MTProto Client. Please check the configuration of your userbot instance.")
+            raise
+        self.vc_users = {}
+
         self.userbot2 = Client(
-            name="BadAss2",
+            name="PROAss2",
             api_id=config.API_ID,
             api_hash=config.API_HASH,
             session_string=str(config.STRING2),
         )
         self.two = PyTgCalls(
+            self.userbot2,
+            cache_duration=100,
+        )
+                self.two = PyTgCalls(
             self.userbot2,
             cache_duration=100,
         )
@@ -111,6 +129,31 @@ class Call(PyTgCalls):
             self.userbot5,
             cache_duration=100,
         )
+      
+    # Add the track_vc method within the Call class
+    async def track_vc(self, client: PyTgCalls, update: Update):
+        global vc_users
+        chat_id = update.chat_id
+
+        participants = await self.vc.get_participants(chat_id)
+        current_users = {p.user_id: p for p in participants}
+
+        for user_id, user in current_users.items():
+            if user_id not in self.vc_users:
+                first_name = user.first_name if user.first_name else "Unknown"
+                username = f"@{user.username}" if user.username else "No Username"
+                message = f"🎙 **User Joined VC**\n👤 **Name:** {first_name}\n🔹 **Username:** {username}\n🆔 **ID:** `{user_id}`"
+                await app.send_message(chat_id, message)
+
+        for user_id in list(self.vc_users.keys()):
+            if user_id not in current_users:
+                user = self.vc_users[user_id]
+                first_name = user.first_name if user.first_name else "Unknown"
+                username = f"@{user.username}" if user.username else "No Username"
+                message = f"🚫 **User Left VC**\n👤 **Name:** {first_name}\n🔹 **Username:** {username}\n🆔 **ID:** `{user_id}`"
+                await app.send_message(chat_id, message)
+
+        self.vc_users = current_users
 
     async def pause_stream(self, chat_id: int):
         assistant = await group_assistant(self, chat_id)
@@ -618,6 +661,14 @@ class Call(PyTgCalls):
         @self.five.on_update(filters.chat_update(ChatUpdate.Status.LEFT_GROUP))
         async def stream_services_handler(_, chat_id: int):
             await self.stop_stream(chat_id)
+
+        @self.one.on_update()
+        @self.two.on_update()
+        @self.three.on_update()
+        @self.four.on_update()
+        @self.five.on_update()
+        async def handle_update(client: PyTgCalls, update: Update):
+            await self.track_vc(client, update)
 
         
         @self.one.on_update(filters.stream_end)
