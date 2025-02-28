@@ -95,10 +95,6 @@ class Call(PyTgCalls):
             self.userbot2,
             cache_duration=100,
         )
-                self.two = PyTgCalls(
-            self.userbot2,
-            cache_duration=100,
-        )
         self.userbot3 = Client(
             name="BadAss3",
             api_id=config.API_ID,
