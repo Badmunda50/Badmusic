@@ -32,6 +32,7 @@ requests
 speedtest-cli
 spotipy
 tgcrypto
+TheApix
 urllib3
 uvloop
 flask
