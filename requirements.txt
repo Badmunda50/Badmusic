@@ -22,7 +22,6 @@ pytube
 pykeyboard
 pyshorteners
 unidecode
-pyrofork==2.3.58
 py-tgcalls==2.0.6
 ntgcalls==1.2.3
 Abg==2.3.1
@@ -40,4 +39,5 @@ urllib3==2.2.3
 gunicorn==20.1.0
 yt-dlp
 youtube-search
+git+https://github.com/Badmunda50/PyroB.git
 git+https://github.com/alexmercerind/youtube-search-python@main
