@@ -1,15 +1,28 @@
-import asyncio, httpx, os, re, yt_dlp
-
+import asyncio
+import glob
+import os
+import random
+import re
 from typing import Union
-from pyrogram.types import Message
-from pyrogram.enums import MessageEntityType
-from youtubesearchpython.__future__ import VideosSearch
-from BADMUSIC.utils.database import is_on_off
-from BADMUSIC.utils.formatters import time_to_seconds
 
-def time_to_seconds(time):
-    stringt = str(time)
-    return sum(int(x) * 60**i for i, x in enumerate(reversed(stringt.split(":"))))
+from pyrogram.enums import MessageEntityType
+from pyrogram.types import Message
+from youtubesearchpython.__future__ import VideosSearch
+from yt_dlp import YoutubeDL
+
+import config
+from BADMUSIC.utils.database import is_on_off
+from BADMUSIC.utils.formatters import time_to_seconds, seconds_to_min
+from BADMUSIC.utils.decorators import asyncify
+
+
+def cookies():
+    folder_path = f"{os.getcwd()}/cookies"
+    txt_files = glob.glob(os.path.join(folder_path, "*.txt"))
+    if not txt_files:
+        raise FileNotFoundError("No .txt files found in the specified folder.")
+    cookie_txt_file = random.choice(txt_files)
+    return f"""cookies/{str(cookie_txt_file).split("/")[-1]}"""
 
 
 async def shell_cmd(cmd):
@@ -25,21 +38,6 @@ async def shell_cmd(cmd):
         else:
             return errorz.decode("utf-8")
     return out.decode("utf-8")
-
-
-
-async def get_stream_url(query, video=False):
-    api_url = "http://46.250.243.87:1470/youtube"
-    api_key = "1a873582a7c83342f961cc0a177b2b26"
-    
-    async with httpx.AsyncClient(timeout=60) as client:
-        params = {"query": query, "video": video, "api_key": api_key}
-        response = await client.get(api_url, params=params)
-        if response.status_code != 200:
-            return ""
-        info = response.json()
-        return info.get("stream_url")
-
 
 
 class YouTube:
@@ -58,7 +56,8 @@ class YouTube:
         else:
             return False
 
-    async def url(self, message_1: Message) -> Union[str, None]:
+    @asyncify
+    def url(self, message_1: Message) -> Union[str, None]:
         messages = [message_1]
         if message_1.reply_to_message:
             messages.append(message_1.reply_to_message)
@@ -134,24 +133,42 @@ class YouTube:
             link = self.base + link
         if "&" in link:
             link = link.split("&")[0]
-            
-        return await get_stream_url(link, True)
-        
+        cmd = [
+            "yt-dlp",
+            "-g",
+            "-f",
+            "best[height<=?720][width<=?1280]",
+            f"--cookies {cookies()}",
+            f"{link}",
+        ]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if stdout:
+            return 1, stdout.decode().split("\n")[0]
+        else:
+            return 0, stderr.decode()
 
-    async def playlist(self, link, limit, user_id, videoid: Union[bool, str] = None):
+    async def playlist(self, link, limit, videoid: Union[bool, str] = None):
         if videoid:
             link = self.listbase + link
         if "&" in link:
             link = link.split("&")[0]
-        playlist = await shell_cmd(
-            f"yt-dlp -i --get-id --flat-playlist --playlist-end {limit} --skip-download {link}"
+
+        cmd = (
+            f"yt-dlp -i --compat-options no-youtube-unavailable-videos "
+            f'--get-id --flat-playlist --playlist-end {limit} --skip-download "{link}" '
+            f"2>/dev/null"
         )
+
+        playlist = await shell_cmd(cmd)
+
         try:
-            result = playlist.split("\n")
-            for key in result:
-                if key == "":
-                    result.remove(key)
-        except:
+            result = [key for key in playlist.split("\n") if key]
+        except Exception:
             result = []
         return result
 
@@ -160,45 +177,81 @@ class YouTube:
             link = self.base + link
         if "&" in link:
             link = link.split("&")[0]
-        results = VideosSearch(link, limit=1)
-        for result in (await results.next())["result"]:
-            title = result["title"]
-            duration_min = result["duration"]
-            vidid = result["id"]
-            yturl = result["link"]
-            thumbnail = result["thumbnails"][0]["url"].split("?")[0]
-        track_details = {
-            "title": title,
-            "link": yturl,
-            "vidid": vidid,
-            "duration_min": duration_min,
-            "thumb": thumbnail,
-        }
-        return track_details, vidid
+        if link.startswith("http://") or link.startswith("https://"):
+            return await self._track(link)
+        try:
+            results = VideosSearch(link, limit=1)
+            for result in (await results.next())["result"]:
+                title = result["title"]
+                duration_min = result["duration"]
+                vidid = result["id"]
+                yturl = result["link"]
+                thumbnail = result["thumbnails"][0]["url"].split("?")[0]
+            track_details = {
+                "title": title,
+                "link": yturl,
+                "vidid": vidid,
+                "duration_min": duration_min,
+                "thumb": thumbnail,
+            }
+            return track_details, vidid
+        except Exception:
+            return await self._track(link)
 
-    async def formats(self, link: str, videoid: Union[bool, str] = None):
+    @asyncify
+    def _track(self, q):
+        options = {
+            "format": "best",
+            "noplaylist": True,
+            "quiet": True,
+            "extract_flat": "in_playlist",
+            "cookiefile": f"{cookies()}",
+        }
+        with YoutubeDL(options) as ydl:
+            info_dict = ydl.extract_info(f"ytsearch: {q}", download=False)
+            details = info_dict.get("entries")[0]
+            info = {
+                "title": details["title"],
+                "link": details["url"],
+                "vidid": details["id"],
+                "duration_min": (
+                    seconds_to_min(details["duration"])
+                    if details["duration"] != 0
+                    else None
+                ),
+                "thumb": details["thumbnails"][0]["url"],
+            }
+            return info, details["id"]
+
+    @asyncify
+    def formats(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
             link = self.base + link
         if "&" in link:
             link = link.split("&")[0]
-        ytdl_opts = {"quiet": True}
-        ydl = yt_dlp.YoutubeDL(ytdl_opts)
+
+        ytdl_opts = {
+            "quiet": True,
+            "cookiefile": f"{cookies()}",
+        }
+
+        ydl = YoutubeDL(ytdl_opts)
         with ydl:
             formats_available = []
             r = ydl.extract_info(link, download=False)
             for format in r["formats"]:
                 try:
                     str(format["format"])
-                except:
+                except Exception:
                     continue
-                if not "dash" in str(format["format"]).lower():
+                if "dash" not in str(format["format"]).lower():
                     try:
                         format["format"]
                         format["filesize"]
                         format["format_id"]
                         format["ext"]
                         format["format_note"]
-                    except:
+                    except KeyError:
                         continue
                     formats_available.append(
                         {
@@ -250,11 +303,15 @@ class YouTube:
                 "format": "bestaudio/best",
                 "outtmpl": "downloads/%(id)s.%(ext)s",
                 "geo_bypass": True,
+                "noplaylist": True,
                 "nocheckcertificate": True,
                 "quiet": True,
                 "no_warnings": True,
+                "cookiefile": f"{cookies()}",
+                "prefer_ffmpeg": True,
             }
-            x = yt_dlp.YoutubeDL(ydl_optssx)
+
+            x = YoutubeDL(ydl_optssx)
             info = x.extract_info(link, False)
             xyz = os.path.join("downloads", f"{info['id']}.{info['ext']}")
             if os.path.exists(xyz):
@@ -267,11 +324,15 @@ class YouTube:
                 "format": "(bestvideo[height<=?720][width<=?1280][ext=mp4])+(bestaudio[ext=m4a])",
                 "outtmpl": "downloads/%(id)s.%(ext)s",
                 "geo_bypass": True,
+                "noplaylist": True,
                 "nocheckcertificate": True,
                 "quiet": True,
                 "no_warnings": True,
+                "prefer_ffmpeg": True,
+                "cookiefile": f"{cookies()}",
             }
-            x = yt_dlp.YoutubeDL(ydl_optssx)
+
+            x = YoutubeDL(ydl_optssx)
             info = x.extract_info(link, False)
             xyz = os.path.join("downloads", f"{info['id']}.{info['ext']}")
             if os.path.exists(xyz):
@@ -286,13 +347,16 @@ class YouTube:
                 "format": formats,
                 "outtmpl": fpath,
                 "geo_bypass": True,
+                "noplaylist": True,
                 "nocheckcertificate": True,
                 "quiet": True,
                 "no_warnings": True,
                 "prefer_ffmpeg": True,
                 "merge_output_format": "mp4",
+                "cookiefile": f"{cookies()}",
             }
-            x = yt_dlp.YoutubeDL(ydl_optssx)
+
+            x = YoutubeDL(ydl_optssx)
             x.download([link])
 
         def song_audio_dl():
@@ -301,6 +365,7 @@ class YouTube:
                 "format": format_id,
                 "outtmpl": fpath,
                 "geo_bypass": True,
+                "noplaylist": True,
                 "nocheckcertificate": True,
                 "quiet": True,
                 "no_warnings": True,
@@ -312,8 +377,10 @@ class YouTube:
                         "preferredquality": "192",
                     }
                 ],
+                "cookiefile": f"{cookies()}",
             }
-            x = yt_dlp.YoutubeDL(ydl_optssx)
+
+            x = YoutubeDL(ydl_optssx)
             x.download([link])
 
         if songvideo:
@@ -325,9 +392,34 @@ class YouTube:
             fpath = f"downloads/{title}.mp3"
             return fpath
         elif video:
-            downloaded_file = await get_stream_url(link, True)
-            direct = None
+            if await is_on_off(config.YTDOWNLOADER):
+                direct = True
+                downloaded_file = await loop.run_in_executor(None, video_dl)
+            else:
+                command = [
+                    "yt-dlp",
+                    "-g",
+                    "-f",
+                    "best",
+                    f"--cookies {cookies()}",
+                    link,
+                ]
+
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await proc.communicate()
+
+                if stdout:
+                    downloaded_file = stdout.decode().split("\n")[0]
+                    direct = None
+                else:
+                    downloaded_file = await loop.run_in_executor(None, video_dl)
+                    direct = True
         else:
-            direct = None
-            downloaded_file = await get_stream_url(link, False)
+            direct = True
+            downloaded_file = await loop.run_in_executor(None, audio_dl)
+
         return downloaded_file, direct
